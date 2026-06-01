@@ -1,0 +1,654 @@
+FLIPKART GRID HACKATHON – COMPLETE APPROACH & DECISION FLOW
+
+=========================================================
+1. PROBLEM UNDERSTANDING
+=========================================================
+
+Goal:
+Predict traffic demand using geographical, temporal,
+road, weather and infrastructure information.
+
+Available Features:
+- Geohash
+- Day
+- Timestamp
+- RoadType
+- NumberOfLanes
+- LargeVehicles
+- Landmarks
+- Weather
+- Temperature
+
+Target:
+- Demand
+
+Evaluation:
+Score = max(0, 100 × R²)
+
+Initial Hypothesis:
+
+Demand may depend on:
+
+- Location
+- Time
+- Road Infrastructure
+- Weather Conditions
+
+Since no domain knowledge was provided, we decided to
+let the data reveal the most important drivers.
+
+
+=========================================================
+2. DATASET EXPLORATION
+=========================================================
+
+What We Did:
+
+- Loaded train and test datasets
+- Checked schema
+- Checked missing values
+- Checked cardinality of features
+- Studied target distribution
+
+What We Found:
+
+Train Rows ≈ 77K
+Test Rows ≈ 41K
+
+The dataset contains both spatial and temporal
+information, indicating a spatio-temporal forecasting
+problem.
+
+We also observed:
+
+- Very few meaningful missing values
+- Geohash had high cardinality
+- Target distribution appeared stable
+
+Decision:
+
+Proceed with detailed analysis of:
+
+1. Time
+2. Geography
+3. Road Features
+4. Weather Features
+
+
+=========================================================
+3. TARGET ANALYSIS
+=========================================================
+
+What We Did:
+
+- Demand histogram
+- Demand boxplots
+- Descriptive statistics
+- Day-wise demand analysis
+
+What We Found:
+
+- Demand distribution was relatively stable
+- No extreme anomalies
+- No obvious requirement for log transformation
+
+Decision:
+
+Keep target unchanged and focus on feature discovery.
+
+
+=========================================================
+4. TIME ANALYSIS
+=========================================================
+
+What We Did:
+
+Extracted:
+
+- Hour
+- Minute
+- Minute of Day
+
+Analyzed:
+
+- Average demand by hour
+- Average demand by timestamp
+
+What We Found:
+
+Demand changes throughout the day.
+
+Certain periods consistently showed:
+
+- Higher traffic
+- Lower traffic
+
+However:
+
+Demand variation caused purely by time was moderate.
+
+Quantitative Finding:
+
+Hour Signal ≈ 2.8%
+
+Interpretation:
+
+Time contributes useful information,
+but cannot explain demand by itself.
+
+Decision:
+
+Keep time features.
+
+Create:
+
+- hour
+- minute
+- minute_of_day
+
+Later add cyclic encoding:
+
+- hour_sin
+- hour_cos
+
+
+=========================================================
+5. GEOGRAPHICAL ANALYSIS
+=========================================================
+
+What We Did:
+
+Created hierarchical geographical features:
+
+Geohash
+↓
+Geo4
+Geo5
+Geo6
+
+Analyzed:
+
+- Mean demand by region
+- Region frequency
+- Region distribution
+
+What We Found:
+
+Huge demand differences across locations.
+
+Some regions consistently showed much higher demand.
+
+Demand differences between locations were far larger
+than demand differences between hours.
+
+Quantitative Finding:
+
+Geo5 Signal ≈ 15.7%
+
+Interpretation:
+
+Location is one of the strongest drivers of demand.
+
+Decision:
+
+Create hierarchical location features:
+
+- geo4
+- geo5
+- geo6
+
+Also create:
+
+- geo4_freq
+- geo5_freq
+- geo6_freq
+
+
+=========================================================
+6. GEOHASH DECODING
+=========================================================
+
+What We Did:
+
+Converted:
+
+Geohash
+↓
+Latitude
+Longitude
+
+Generated:
+
+- lat
+- lon
+
+Reason:
+
+Geohash is categorical.
+
+Latitude and longitude provide continuous spatial
+information.
+
+What We Found:
+
+Locations formed meaningful geographical clusters.
+
+Decision:
+
+Keep both:
+
+- Raw geohash hierarchy
+- Continuous coordinates
+
+Final Features:
+
+- geo4
+- geo5
+- geo6
+- lat
+- lon
+
+
+=========================================================
+7. ROAD FEATURE ANALYSIS
+=========================================================
+
+What We Did:
+
+Analyzed:
+
+RoadType vs Demand
+
+NumberOfLanes vs Demand
+
+LargeVehicles vs Demand
+
+What We Found:
+
+RoadType showed extremely strong separation.
+
+Example:
+
+Highway Demand
+>
+Street Demand
+>
+Residential Demand
+
+RoadType became one of the strongest predictors.
+
+NumberOfLanes and LargeVehicles also showed strong
+relationships.
+
+Decision:
+
+Keep all road-related features.
+
+Features retained:
+
+- RoadType
+- NumberOfLanes
+- LargeVehicles
+
+
+=========================================================
+8. WEATHER ANALYSIS
+=========================================================
+
+What We Did:
+
+Analyzed:
+
+- Weather vs Demand
+- Temperature vs Demand
+- Weather by Hour
+- Temperature Trends
+
+What We Found:
+
+Almost no variation.
+
+Demand remained nearly identical across:
+
+- Sunny
+- Rainy
+- Foggy
+- Snowy
+
+Temperature also showed negligible impact.
+
+Mutual Information scores were extremely low.
+
+Interpretation:
+
+Weather contains very weak signal.
+
+Decision:
+
+Keep weather features because CatBoost can process them
+cheaply, but avoid spending feature engineering effort
+on weather interactions.
+
+
+=========================================================
+9. SIGNAL DISCOVERY PHASE
+=========================================================
+
+At this point we stopped traditional EDA.
+
+Instead we asked:
+
+"What actually explains demand?"
+
+=========================================================
+9.1 FEATURE IMPORTANCE ANALYSIS
+=========================================================
+
+Methods Used:
+
+- Mutual Information
+- Group Statistics
+- Variance Analysis
+
+What We Found:
+
+Strong Features:
+
+- RoadType
+- Geo6
+- Geohash
+- NumberOfLanes
+- LargeVehicles
+
+Weak Features:
+
+- Weather
+- Temperature
+
+Decision:
+
+Focus engineering efforts on:
+
+Location
++
+Road Infrastructure
++
+Time
+
+
+=========================================================
+9.2 GEO STABILITY ANALYSIS
+=========================================================
+
+What We Did:
+
+Compared regional demand across different days.
+
+What We Found:
+
+Most regions maintained similar demand behavior.
+
+Interpretation:
+
+Historical regional demand is meaningful.
+
+Decision:
+
+Create target aggregation features using regional
+historical demand.
+
+
+=========================================================
+9.3 GEO COVERAGE ANALYSIS
+=========================================================
+
+What We Did:
+
+Compared:
+
+Train Geo Values
+vs
+Test Geo Values
+
+What We Found:
+
+Almost every Geo5 region present in test data already
+existed in training data.
+
+Interpretation:
+
+Historical regional statistics should generalize well.
+
+Decision:
+
+Proceed with target encoding features.
+
+
+=========================================================
+9.4 GEO-TIME INTERACTION ANALYSIS
+=========================================================
+
+What We Did:
+
+Created:
+
+Geo5 × Hour heatmaps
+
+Studied:
+
+Demand behavior across both location and time.
+
+What We Found:
+
+Different regions have completely different hourly
+patterns.
+
+Example:
+
+Commercial Areas:
+- Morning peaks
+
+Residential Areas:
+- Evening peaks
+
+Quantitative Finding:
+
+Geo5 Signal      ≈ 15.7%
+Hour Signal      ≈ 2.8%
+Geo5+Hour Signal ≈ 22.4%
+
+Most Important Discovery:
+
+Location-Time interactions contain more information
+than location or time individually.
+
+Decision:
+
+Build location-time aggregation features.
+
+
+=========================================================
+10. FEATURE ENGINEERING
+=========================================================
+
+Based on every previous finding.
+
+---------------------------------------------------------
+10.1 Time Features
+---------------------------------------------------------
+
+Created:
+
+- hour
+- minute
+- minute_of_day
+
+Added:
+
+- hour_sin
+- hour_cos
+
+Reason:
+
+Capture cyclic nature of time.
+
+
+---------------------------------------------------------
+10.2 Spatial Features
+---------------------------------------------------------
+
+Created:
+
+- geo4
+- geo5
+- geo6
+
+Reason:
+
+Capture demand at multiple geographical resolutions.
+
+
+---------------------------------------------------------
+10.3 Frequency Features
+---------------------------------------------------------
+
+Created:
+
+- geo4_freq
+- geo5_freq
+- geo6_freq
+
+Reason:
+
+Dense regions behave differently from sparse regions.
+
+
+---------------------------------------------------------
+10.4 Coordinate Features
+---------------------------------------------------------
+
+Created:
+
+- lat
+- lon
+
+Reason:
+
+Capture continuous spatial relationships.
+
+
+---------------------------------------------------------
+10.5 Historical Demand Features
+---------------------------------------------------------
+
+Created:
+
+- geo4_mean_demand
+- geo5_mean_demand
+- geo6_mean_demand
+
+Reason:
+
+Geo stability analysis showed historical demand is
+predictive.
+
+Finding That Led To This:
+
+Regions consistently exhibited similar demand patterns.
+
+
+---------------------------------------------------------
+10.6 Geo-Time Demand Features
+---------------------------------------------------------
+
+Created:
+
+- geo4_hour_mean
+- geo5_hour_mean
+- geo6_hour_mean
+
+Reason:
+
+Geo-Time analysis revealed that demand is fundamentally
+a location-time interaction problem.
+
+Finding That Led To This:
+
+Geo5+Hour signal was substantially larger than
+Geo5 signal alone.
+
+These ultimately became the strongest engineered
+features.
+
+
+=========================================================
+11. MODEL SELECTION
+=========================================================
+
+Models Evaluated:
+
+- Ridge
+- HistGradientBoosting
+- LightGBM
+- XGBoost
+- CatBoost
+
+What We Found:
+
+CatBoost consistently performed best.
+
+Reason:
+
+- Handles categorical features natively
+- Handles high-cardinality geospatial features
+- Learns complex interactions effectively
+- Requires minimal preprocessing
+
+
+=========================================================
+12. FINAL INSIGHT
+=========================================================
+
+Every stage of analysis progressively reduced the search
+space.
+
+Initial Assumption:
+
+Demand depends on:
+- Location
+- Time
+- Weather
+- Road Conditions
+
+EDA Findings:
+
+Weather signal was weak.
+
+RoadType signal was strong.
+
+Geographical signal was very strong.
+
+Signal Discovery Findings:
+
+Location-Time interactions explained the largest
+portion of variance.
+
+Feature Engineering Decision:
+
+Focus on:
+
+- Spatial Features
+- Spatial Aggregations
+- Spatial-Temporal Aggregations
+
+Final Understanding:
+
+Traffic Demand ≈
+
+(Location)
++
+(Road Infrastructure)
++
+(Location × Time Interaction)
+
+This insight became the foundation of the final model.
